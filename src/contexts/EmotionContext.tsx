@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { emotionApi } from '../services/emotionApi';
 
 // Define emotion types
 export type EmotionType = 
@@ -21,18 +22,18 @@ export interface EmotionData {
   timestamp: Date;
 }
 
-// Sample emotional response for testing
-const defaultEmotions: Record<EmotionType, string> = {
-  joy: '#f59e0b', // amber-500
-  sadness: '#3b82f6', // blue-500
-  anger: '#ef4444', // red-500
-  fear: '#8b5cf6', // violet-500
-  surprise: '#10b981', // emerald-500
-  disgust: '#64748b', // slate-500
-  neutral: '#9ca3af', // gray-400
-  love: '#ec4899', // pink-500
-  excitement: '#f97316', // orange-500
-  confusion: '#8b5cf6', // violet-500
+// Emotion colors mapping
+const emotionColors: Record<EmotionType, string> = {
+  joy: '#f59e0b',
+  sadness: '#3b82f6',
+  anger: '#ef4444',
+  fear: '#8b5cf6',
+  surprise: '#10b981',
+  disgust: '#64748b',
+  neutral: '#9ca3af',
+  love: '#ec4899',
+  excitement: '#f97316',
+  confusion: '#8b5cf6',
 };
 
 interface EmotionContextProps {
@@ -61,35 +62,56 @@ export const EmotionProvider = ({ children }: EmotionProviderProps) => {
   const [currentEmotion, setCurrentEmotion] = useState<EmotionData | null>(null);
   const [emotionHistory, setEmotionHistory] = useState<EmotionData[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isApiHealthy, setIsApiHealthy] = useState(true);
 
-  // Mock emotion detection - in a real implementation, this would call your API
+  // Check API health on mount
+  useEffect(() => {
+    const checkApiHealth = async () => {
+      const isHealthy = await emotionApi.healthCheck();
+      setIsApiHealthy(isHealthy);
+      if (!isHealthy) {
+        console.error('Emotion API is not available');
+      }
+    };
+    checkApiHealth();
+  }, []);
+
   const detectEmotion = async (text: string): Promise<EmotionData> => {
     setIsProcessing(true);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Mock detection logic - this would be replaced with actual API call
-    // This is just for demo purposes
-    const emotionTypes = Object.keys(defaultEmotions) as EmotionType[];
-    const randomIndex = Math.floor(Math.random() * emotionTypes.length);
-    const detectedType = emotionTypes[randomIndex];
-    
-    // Calculate mock intensity based on text length and complexity
-    const intensity = Math.min(0.3 + Math.random() * 0.7, 1);
-    
-    const emotion: EmotionData = {
-      type: detectedType,
-      intensity: intensity,
-      color: defaultEmotions[detectedType],
-      timestamp: new Date()
-    };
-    
-    setCurrentEmotion(emotion);
-    setEmotionHistory(prev => [...prev, emotion]);
-    setIsProcessing(false);
-    
-    return emotion;
+    try {
+      if (!isApiHealthy) {
+        throw new Error('Emotion API is not available');
+      }
+
+      const result = await emotionApi.detectEmotion(text);
+      
+      const emotion: EmotionData = {
+        type: result.emotion,
+        intensity: result.intensity,
+        color: emotionColors[result.emotion],
+        timestamp: new Date()
+      };
+      
+      setCurrentEmotion(emotion);
+      setEmotionHistory(prev => [...prev, emotion]);
+      
+      return emotion;
+    } catch (error) {
+      console.error('Error detecting emotion:', error);
+      // Fallback to neutral emotion on error
+      const fallbackEmotion: EmotionData = {
+        type: 'neutral',
+        intensity: 0.5,
+        color: emotionColors.neutral,
+        timestamp: new Date()
+      };
+      
+      setCurrentEmotion(fallbackEmotion);
+      return fallbackEmotion;
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const clearEmotionHistory = () => {
@@ -102,7 +124,7 @@ export const EmotionProvider = ({ children }: EmotionProviderProps) => {
     setCurrentEmotion({
       type: 'neutral',
       intensity: 0.5,
-      color: defaultEmotions.neutral,
+      color: emotionColors.neutral,
       timestamp: new Date()
     });
   }, []);
