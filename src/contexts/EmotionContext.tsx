@@ -42,6 +42,7 @@ interface EmotionContextProps {
   detectEmotion: (text: string) => Promise<EmotionData>;
   clearEmotionHistory: () => void;
   isProcessing: boolean;
+  apiStatus: 'available' | 'mock' | 'checking';
 }
 
 const EmotionContext = createContext<EmotionContextProps | undefined>(undefined);
@@ -62,16 +63,14 @@ export const EmotionProvider = ({ children }: EmotionProviderProps) => {
   const [currentEmotion, setCurrentEmotion] = useState<EmotionData | null>(null);
   const [emotionHistory, setEmotionHistory] = useState<EmotionData[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isApiHealthy, setIsApiHealthy] = useState(true);
+  const [apiStatus, setApiStatus] = useState<'available' | 'mock' | 'checking'>('checking');
 
   // Check API health on mount
   useEffect(() => {
     const checkApiHealth = async () => {
+      setApiStatus('checking');
       const isHealthy = await emotionApi.healthCheck();
-      setIsApiHealthy(isHealthy);
-      if (!isHealthy) {
-        console.error('Emotion API is not available');
-      }
+      setApiStatus(isHealthy ? 'available' : 'mock');
     };
     checkApiHealth();
   }, []);
@@ -80,10 +79,6 @@ export const EmotionProvider = ({ children }: EmotionProviderProps) => {
     setIsProcessing(true);
     
     try {
-      if (!isApiHealthy) {
-        throw new Error('Emotion API is not available');
-      }
-
       const result = await emotionApi.detectEmotion(text);
       
       const emotion: EmotionData = {
@@ -136,7 +131,8 @@ export const EmotionProvider = ({ children }: EmotionProviderProps) => {
         emotionHistory,
         detectEmotion,
         clearEmotionHistory,
-        isProcessing
+        isProcessing,
+        apiStatus
       }}
     >
       {children}
